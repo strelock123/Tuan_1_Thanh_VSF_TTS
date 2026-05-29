@@ -1,0 +1,452 @@
+	AC2: Liệt kê được các vấn đề phổ biến: metadata thừa, thiếu, sai tên, sai phân loại, thiếu mã tài sản, thiếu thông tin vận hành, dữ liệu không đồng nhất.	Hiện trạng	analysis							
+1	metadata thừa	field chỉ phục vụ thiết kế, xây dựng: Graphics, Phasing, Constraints, Host Id, Coarse Scale Fill, Color, Related to Mass, Room Bounding	Không sai, nhưng nếu đưa thẳng vào twin sẽ gây “semantic noise”							
+2	metadata thiếu									
+3	Sai tên	"Tên object vẫn mang style Revit/construction: Basic Wall:Wall-Ext_102Bwk-75Ins-100LBlk-12P:285330
+Doors_IntSgl:810x2110mm:285959
+Curtain Wall:Curtain_Wall-Exterior_Glazing:8490"	Quá dài, chứa type + size + Revit ID, không phải asset code chuẩn, khó map sang BMS/CMMS							
+4	Sai phân loại	"Không có hệ thống MEP / operational system graph: Không có ifcsystem Không thấy các entity như: IfcPump
+IfcFan
+IfcChiller
+IfcSensor
+IfcController
+IfcUnitaryEquipment
+IfcFlowSegment"	"Không thể tạo một số quan hệ kiểu: AHU serves Room
+Pump belongs_to CHW System
+Sensor measures Temperature"							
+5	Thiếu mã tài sản	File có Tag dạng số như: 285330, 285395	Thiếu các file kiểu : AssetID, EquipmentTag, FM_ID, CMMS_ID, BMS_Tag, ExternalAssetID							
+6	Thiếu thông tin vận hành		Serial Number, warranty, installation date, maintenance schedule, service internal, commissioning status, bms/sensor point							
+7	dữ liệu không đồng nhất	Một số object có Mark, nhiều object không có.	Classification chỉ thấy áp dụng cho 4 furniture objects, không áp dụng đồng đều toàn bộ model.							
+										
+	AC3: Có bảng phân loại vấn đề theo nhóm: Geometry, Metadata, Classification, Asset Code, Location, Maintenance Info.	already	lack	INPUT	Detect issue and fix 	Output	INPUT	Detect issue and fix 	Output	
+8	Bảng phân loại vấn đề theo nhóm Geometry	"IFC có chứa geometry: File có:walls, doors, windows, curtain walls, slabs, furniture
+dưới dạng:
+extrusion
+local placement
+shape representation"	Geometry phục vụ thiết kế nhiều hơn vận hành: curtain wall mullion, detailed openings, decorative elements. => tăng độ nặng twin nhưng ít giá trị FM.	"Entity:
+IfcCurtainWall
+
+Related Elements:
+IfcMember
+IfcPlate
+IfcOpeningElement
+IfcFastener"	"Geometry quá chi tiết cho vận hành
+High-detail BIM geometry
+→ lightweight glTF/USD mesh"	"IfcCurtainWall
+GeometryLOD = Simplified
+OperationalGeometry = TRUE
+DetailComponentsRemoved = TRUE"	"IfcDoor
+ContainedIn:
+  IfcBuildingStorey = Ground Floor"	"Thêm spatial relationship:
+
+IfcRelContainedInSpatialStructure
+  Door → Living Room"	"IfcDoor
+LocatedIn:
+  Building = Sample House
+  Floor = Ground Floor
+  Space = Living Room"	
+9	Phân loại theo metadata	Metadata có trong file: Name , discription, object type, tag, revit parameter sets	"Metadata thiếu hầu như toàn bộ operational metadata: Asset ID, Manuafacture, Model number, Serial Number, waranty, Install date, Maintenance schedule, Service interval, BMS tag. Nhưng metadata lại thừa parameter kiểu revit: Graphics
+Phasing, Constraints, Related to Mass, Coarse Scale Fill Color"	"IfcDoor
+Name = Doors_IntSgl:810x2110mm
+Tag = 285959"	"SUGGESTED FIX
+
+Enrich metadata bằng:
+
+COBie
+CMMS export
+FM spreadsheet
+
+Add property set:
+
+Pset_AssetManagement"	"IfcDoor
+AssetID = DR-001
+Manufacturer = ABC Doors
+InstallDate = 2025-03-10
+WarrantyEnd = 2028-03-10
+MaintenanceInterval = 12 months"	"Properties:
+Graphics
+Constraints
+Coarse Scale Fill Color
+Related to Mass"	"Revit/construction metadata không phục vụ vận hành.
+Remove:
+- Graphics
+- temporary construction parameters
+- visualization-only fields"	"RetainedProperties:
+- AssetID
+- Manufacturer
+- Warranty
+- Location
+- System"	
+10	bảng phân loại vấn đề theo classification	"ifc classification có tồn tại: IfcWall
+IfcDoor
+IfcWindow
+IfcFurniture"	Thiếu classification bussiness, operation. Ví dụ: Không có omniclass, Uniclass, Cobie operation classification, không có brick/ haystack  semantic. Chỉ vài furniture object có classification mapping, không có classification enrichment.	IfcWall	"Classification quá sơ sài
+Add:
+
+OmniClass
+UniClass
+Brick class"	"IfcWall
+
+Classification:
+OmniClass = 21-02 10 20
+UniClass = EF_25_10
+BrickClass = brick:Wall"	"IfcFurniture
+  → has classification
+
+IfcDoor
+  → no classification"	Semantic inconsistency giữa object categories.	"IfcDoor
+Classification = Door.Asset
+
+IfcFurniture
+Classification = Furniture.Asset"	
+11	Bảng phân loại vấn đề theo Asset Code	Có Tag = 285330 nhưng là Revit internal element ID, không có operation asset identity	Thiếu: AHU-01, P-CHW-01, ELV-L1-02, FM-000192 không có stable external id: CMMS_IDBMS_ID, ERP_ID, Twin_ID. Khi update model thì ID có thể thay đổi, sensor binding gãy, twin không stable	Tag = 285330	"Generate stable asset code:
+
+Rule:
+
+<Building>-<System>-<AssetType>-<Sequence>"	"AssetID = B1-HVAC-AHU-001
+ExternalTwinID = DT-88291
+LegacyRevitID = 285330"	"IfcPump
+(no external IDs)"	"Không map được:
+
+BMS
+CMMS
+ERP
+IoT platform"	"IfcPump
+
+CMMS_ID = CMMS-2219
+BMS_TAG = PUMP_CHW_01
+IoT_Device_ID = mqtt://pump/chw/01"	
+12	Bảng phân loại vấn đề theo Location	"IFC có spatial hierarchy : IfcProject
+ → Site
+ → Building
+ → Ground Floor
+ → Spaces
+có room/space: Living room
+Bedroom"	Spatial mapping chưa đầy đủ: Nhiều object không gắn room rõ ràng, chỉ thuộc floor. Thiếu operational zoning như : HVAC zone, fire zone, sercurity zone , maintenancy zone	"IfcFurniture
+LocatedIn:
+  Ground Floor"	"Không biết furniture thuộc room nào.
+
+SUGGESTED FIX
+
+Add room-level containment:
+
+Furniture → Bedroom"	"IfcFurniture
+
+Building = Sample House
+Floor = Ground Floor
+Room = Bedroom
+Zone = Residential"	IfcSpace = Living Room	"DETECTED ISSUE
+
+Không có:
+
+HVAC zone
+fire zone
+maintenance zone"	"Living Room
+
+HVACZone = HVAC-ZONE-01
+FireZone = FIRE-ZONE-A
+MaintenanceZone = MZ-GF-01"	
+13	Bảng phân loại vấn đề theo Maintenance info	"Không có maintenance semantic như: MaintenanceType
+InspectionInterval
+ReplacementCycle
+WarrantyEnd
+SpareParts
+ServiceVendor"		"IfcWindow
+(no maintenance properties)"	"Add FM property set:
+
+Pset_FacilityManagement"	"IfcWindow
+
+WarrantyStart = 2025-01-10
+WarrantyEnd = 2028-01-10
+ServiceVendor = ABC Glass"	"IfcDoor
+(no service interval)"	Không hỗ trợ preventive maintenance.	"IfcDoor
+
+InspectionInterval = 6 months
+ReplacementCycle = 15 years
+MaintenancePriority = Medium"	
+										
+	AC4: Có danh sách metadata cần giữ lại, cần chuẩn hóa, cần bổ sung, cần loại bỏ.	Giữ: 	Bỏ							
+14		Metadata thiếu hầu như toàn bộ operational metadata: Asset ID, Manuafacture, Model number, Serial Number, waranty, Install date, Maintenance schedule, Service interval, BMS tag. Name , discription, object type, tag	Graphics, Phasing, Constraints, Related to Mass, Coarse Scale Fill Color							
+										
+	danh sách trường thông tin tối thiểu cho asset vận hành: Asset ID, Asset Name, Asset Type, IFC Class, System, Location, Floor, Room/Zone, Manufacturer, Model, Serial Number, Warranty, Maintenance Info, Status.	Field 	Tính bắt buộc 	Mô tả						
+15	Core Identity	Asset ID	YES	ID duy nhất toàn hệ						
+	Core Identity	Asset Name	YES	Tên chuẩn hóa						
+	Core Identity	Asset Type	YES	Loại asset vận hành						
+	Core Identity	IFC Class	YES	IFC entity						
+	Core Identity	Status	YES	Active/Inactive/Maintenance						
+16	Spatial Information	Building	YES	Tòa nhà						
+	Spatial Information	Floor	YES	Tầng						
+	Spatial Information	Room/Zone	YES	Không gian phục vụ						
+	Spatial Information	Location	YES	Vị trí đầy đủ						
+										
+17	System Information	System	YES	HVAC/Electrical/etc						
+	System Information	Subsystem	OPTIONAL	Chilled Water Loop						
+	System Information	Connected To	OPTIONAL	Quan hệ topology						
+										
+18	Manufacturer Information	Manufacturer	YES	Nhà sản xuất						
+	Manufacturer Information	Model	YES	Model thiết bị						
+	Manufacturer Information	Serial Number	OPTIONAL	Serial thực tế						
+										
+19	Lifecycle Information	Field	Bắt buộc	Mô tả						
+	Lifecycle Information	Install Date	OPTIONAL	Ngày lắp						
+	Lifecycle Information	Warranty Start	OPTIONAL							
+	Lifecycle Information	Warranty End	OPTIONAL							
+	Lifecycle Information	Maintenance Info	YES	PM strategy						
+										
+	Có quy tắc đặt tên đối tượng, quy tắc mã hóa Asset ID, quy tắc phân loại hệ thống, quy tắc gán vị trí.	"Naming Convention
+
+Asset names must:
+
+Be human-readable
+Be standardized
+Avoid free-text descriptions
+Avoid software-generated IDs
+
+Recommended format:
+
+--
+
+Example:
+
+AHU-L2-01"	"Asset ID Requirements
+
+Asset IDs must:
+
+Be globally unique
+Remain stable across BIM revisions
+Not depend on Revit internal IDs
+Be machine-readable
+
+Recommended format:
+
+---
+
+Example:
+
+B1-HVAC-AHU-001"							
+20		"Nguyên tắc phân loại hệ thống
+Nguyên tắc 1 — Một asset phải thuộc ít nhất 1 operational system
+Ví dụ:
+Asset   	System
+AHU	  HVAC
+Pump  	Chilled Water
+Nguyên tắc 2 — System phải theo hierarchy
+Domain
+ └── System
+      └── Subsystem
+           └── Equipment
+"	"Nguyên tắc gán vị trí
+Nguyên tắc 1 — Mọi asset phải có spatial hierarchy đầy đủ
+Campus
+ → Building
+   → Floor
+     → Zone
+       → Room
+         → Asset
+Nguyên tắc 2 — Không dùng free-text location
+Near elevator
+Beside lobby
+"							
+										
+	bảng mapping từ BIM Property sang Digital Twin Property									
+		BIM Property	IFC Property	Digital Twin Property	Transformation Rule	Example				
+		Element GUID	GlobalId	TwinAssetGUID	Preserve	"INPUT BIM/IFC
+IfcUnitaryEquipment
+Name = AHU-01
+Tag = 285330
+Level = Ground Floor
+System = Air System
+Manufacturer = Daikin
+OUTPUT DIGITAL TWIN
+TwinAssetGUID = DT-000192
+
+AssetID = B1-HVAC-AHU-001
+AssetName = AHU-L01-01
+AssetType = AirHandlingUnit
+
+IFCClass = IfcUnitaryEquipment
+
+Domain = HVAC
+System = AHU
+Subsystem = SupplyAir
+
+Building = B1
+Floor = L01
+Room = MechanicalRoom01
+Zone = HVAC-ZONE-01
+
+Manufacturer = Daikin
+Model = VRV-X200
+AssetStatus = Active"				
+		Revit Tag	Tag	AssetID	Normalize					
+		Family Name	ObjectType	AssetType	Standardize taxonomy					
+		IFC Entity	IFC Class	IFCClass	Preserve					
+		System Name	IfcSystem.Name	OperationalSystem	Map to taxonomy					
+		Level	IfcBuildingStorey	Floor	Normalize					
+		Room Name	IfcSpace.Name	Room	Normalize					
+		Zone	IfcZone	OperationalZone	Standardize					
+		Manufacturer	Pset_ManufacturerTypeInformation.Manufacturer	Manufacturer	Preserve					
+		Model	ModelLabel	Model	Preserve					
+		Serial Number	SerialNumber	SerialNumber	Preserve					
+		Installation Date	InstallDate	InstallDate	ISO date normalization					
+		Warranty Start	WarrantyStartDate	WarrantyStart	ISO date normalization					
+		Warranty End	WarrantyEndDate	WarrantyEnd	ISO date normalization					
+		Status	OperationalStatus	AssetStatus	Enumerated mapping					
+										
+	AC4: Có danh sách metadata cần giữ lại, cần chuẩn hóa, cần bổ sung, cần loại bỏ.	Giữ lại	Chuẩn hóa	Bổ sung	Loại bỏ					
+		"Metadata to Retain
+
+These properties contain core semantic and operational meaning.
+
+Property	   Reason
+GlobalId     	Stable BIM reference
+IFC Class	   Core semantic classification
+ObjectType	    Asset type reference
+System Assignment	   Operational topolog
+Spatial Hierarchy	  Location context
+Geometry Reference	  Visualization context
+Manufacturer	  Operational lifecycle
+Model Number  	Asset tracking
+Serial Number  	Equipment traceability
+Material	  Engineering context"	"Metadata Normalization Rules
+
+These properties must be standardized before Digital Twin ingestion.
+
+BIM Property	  Problem   	Normalized Output
+Revit Tag	  Tool-specific	  AssetID
+Family Name	  Inconsistent naming	  AssetType
+Level  	Human-readable only  	Standardized Floor Code
+Room Name	  Free-text	  Standard Room ID
+System Name	  Discipline-dependent	  Standard System Taxonomy
+Status	Ambiguous values	  Enumerated AssetStatus"	"Metadata Enrichment Rules
+
+The following operational metadata must be added if absent in BIM.
+
+Property	Source
+AssetID	Asset registry
+CMMS_ID	CMMS system
+BMS_Tag	BMS platform
+IoT_Device_ID	IoT platform
+WarrantyStart	Vendor/FM
+WarrantyEnd	Vendor/FM
+InstallDate	Construction handover
+MaintenanceInterval	FM policy
+InspectionSchedule	FM policy
+AssetStatus	Operations system
+OperationalZone	Facility operations"	"Metadata Removal Rules
+
+The following metadata shall not be transferred into operational Digital Twin schemas.
+
+Property Type	Reason
+Graphics Parameters	Visualization-only
+Detailing Metadata	Fabrication-only
+Temporary Construction Metadata	Non-operational
+Clash Resolution Notes	Construction-only
+Rendering Parameters	No operational value
+Revit Internal Temporary IDs	Unstable
+Coarse Scale Fill Color	UI-only
+Related to Mass	Design-only
+Graphics Style	Non-semantic"					
+										
+	sơ đồ BIM Pipeline: Upload/Input File → Inspect → Validate → Clean → Map→ enrich → Export → Review → Import Digital Twin.									
+		"Stage 1 — Upload / Input BIM File
+Inputs
+IFC
+RVT
+NWC
+COBie
+Asset spreadsheets
+Objectives
+Collect construction BIM deliverables
+Verify file completeness
+Register source metadata"	"Stage 2 — Inspect IFC Structure
+Objectives
+Parse IFC entities
+Inspect spatial hierarchy
+Detect systems
+Extract properties
+Identify relationships
+Typical Checks
+IFC version
+Entity count
+Missing relationships
+Invalid geometry
+Duplicate GUIDs"	"Stage 3 — Validate BIM Quality
+Objectives
+Detect BIM readiness issues
+Evaluate operational completeness
+Validation Categories
+Geometry
+Metadata
+Classification
+Asset Identity
+Spatial Hierarchy
+System Assignment
+Operational Readiness
+Outputs
+BIM audit report
+Readiness score
+Error log"	"Stage 4 — Clean & Normalize Metadata
+Objectives
+Remove construction-only metadata
+Normalize naming
+Standardize systems
+Standardize locations
+Actions
+Remove graphics parameters
+Normalize asset names
+Normalize floor naming
+Remove duplicate fields"	"Stage 5 — Map to Operational Schema
+Objectives
+Transform BIM semantics into operational semantics
+Mapping Targets
+Asset Schema
+System Taxonomy
+Spatial Taxonomy
+Operational Relationships
+Example
+
+Revit Tag → AssetID
+IfcSystem → OperationalSystem"	"Stage 6 — Enrich Operational Metadata
+Objectives
+Add FM and operational data
+Enrichment Sources
+CMMS
+BMS
+IoT platform
+Asset registry
+Warranty database
+Added Properties
+AssetID
+CMMS_ID
+BMS_Tag
+Warranty
+Maintenance Schedule
+Operational Status"	"Stage 7 — Export AIM / Twin Schema
+Export Targets
+IFC-AIM
+JSON
+Graph database
+DTDL
+Brick Schema
+Neo4j graph
+Azure Digital Twins schema"	"Stage 8 — Review & Approve
+Objectives
+Human QA review
+FM validation
+Engineering approval
+Validation Checks
+Asset completeness
+Naming consistency
+Spatial correctness
+System correctness"	"Stage 9 — Import into Digital Twin Platform
+Platforms
+Azure Digital Twins
+Bentley iTwin
+NVIDIA Omniverse
+Neo4j
+FIWARE
+Outputs
+Operational asset graph
+Spatial graph
+System topology
+IoT-connected Digital Twin"
